@@ -32,7 +32,14 @@ pool.query('SELECT 1')
   .catch((err) => console.error('❌ Error al conectar a PostgreSQL:', err.message));
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:4200',                    // desarrollo local
+    /\.vercel\.app$/,                           // cualquier subdominio de Vercel
+    process.env.FRONTEND_URL,                  // URL personalizada si la tienes
+  ].filter(Boolean),
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
