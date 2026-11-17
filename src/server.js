@@ -13,12 +13,22 @@ if (!fs.existsSync(uploadsDir)) {
 const pool = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const progressRoutes = require('./routes/progressRoutes');
+const retosRoutes    = require('./routes/retosRoutes');
+const { ensureProgressTable } = require('./queries/progressQueries');
+const { ensureXpTable } = require('./queries/xpQueries');
+const { ensureRetosJuegos } = require('./queries/retosQueries');
+const { ensureProfileColumns } = require('./queries/userQueries');
 
 const app = express();
 
 // Verificar conexión a PostgreSQL al arrancar
 pool.query('SELECT 1')
   .then(() => console.log('✅ Conectado a PostgreSQL correctamente'))
+  .then(() => ensureProgressTable())
+  .then(() => ensureXpTable())
+  .then(() => ensureRetosJuegos())
+  .then(() => ensureProfileColumns())
   .catch((err) => console.error('❌ Error al conectar a PostgreSQL:', err.message));
 
 // Middlewares
@@ -30,8 +40,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Rutas
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
+app.use('/api/auth',     authRoutes);
+app.use('/api/users',    userRoutes);
+app.use('/api/progress', progressRoutes);
+app.use('/api/retos',    retosRoutes);
 
 // Ruta de health check
 app.get('/api/health', (req, res) => {
@@ -41,7 +53,12 @@ app.get('/api/health', (req, res) => {
 // Manejo de errores
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: err.message || 'Error interno del servidor' });
+  // Errores de subida de archivos (tipo o tamaño no válido) son errores del cliente
+  if (err.name === 'MulterError') {
+    const mensaje = err.code === 'LIMIT_FILE_SIZE' ? 'La imagen no puede pesar más de 5 MB' : err.message;
+    return res.status(400).json({ error: mensaje });
+  }
+  res.status(err.status || 500).json({ error: err.message || 'Error interno del servidor' });
 });
 
 const PORT = process.env.PORT || 3000;
